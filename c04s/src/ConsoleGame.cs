@@ -11,26 +11,35 @@ public class ConsoleGame
     /// <summary>
     /// Static method that prints the provided board to the Console
     /// </summary>
-    /// <param name="board"></param>
-	public static void DrawBoard(int[,] board)
+    /// <param name="cPP">currentPlayerPositions</param>
+    /// <param name="oPP">otherPlayerPositions</param>
+	public static void DrawBoard(ulong cPP, ulong oPP)
 	{
-        for (int i = board.GetLength(1) - 1; i >= 0; i--)
+        string cPPs = Convert.ToString((long)cPP, 2).PadLeft(63 - 14, '0');
+        string oPPs = Convert.ToString((long)oPP, 2).PadLeft(63 - 14, '0');
+        Console.WriteLine(cPPs);
+        Console.WriteLine(oPPs);
+
+        for (int i = 0; i < cPPs.Length; i++)
         {
-            for(int j = 0; j < board.GetLength(0); j++)
+            if (i % 7 == 0)
             {
-                int spot = board[j, i];
-                if (spot == 1)
-                {
-                    Console.BackgroundColor = ConsoleColor.Red;
-                }
-                else if (spot == 2)
-                {
-                    Console.BackgroundColor = ConsoleColor.Blue;
-                }
-                Console.Write(spot);
-                Console.BackgroundColor = ConsoleColor.Black;
+                Console.WriteLine();
             }
-            Console.WriteLine();
+            string spot = "0";
+            if (cPPs[i] == '1')
+            {
+                Console.BackgroundColor = ConsoleColor.Red;
+                spot = "1";
+            }
+            else if (oPPs[i] == '1')
+            {
+                Console.BackgroundColor = ConsoleColor.Blue;
+                spot = "2";
+            }
+            Console.Write(spot);
+            Console.BackgroundColor = ConsoleColor.Black;
         }
+        Console.WriteLine();
     }
 }

@@ -21,6 +21,16 @@ public class Tests
      */
 
     /**
+     * Test position 44455554221:
+     * .......
+     * .......
+     * ...ox..
+     * ...xo..
+     * .o.ox..
+     * xx.xo..
+     */
+
+    /**
     * Reads Connect 4 positions, line by line, from standard input
     * and writes one line per position to standard output containing:
     *  - score of the position
@@ -53,8 +63,7 @@ public class Tests
                 sw.Stop();
                 Console.WriteLine($"{line} {score} {solver.GetNodeCount()} {sw.ElapsedTicks / (TimeSpan.TicksPerMillisecond / 1000L)}");
             }
-            ConsoleGame.DrawBoard(P.GetBoard());
-            Console.WriteLine("\n");
+            ConsoleGame.DrawBoard(P.GetCurrentPlayerPositions(), P.GetOtherPlayerPositions());
             l++; // Increment the line counter
         }
         swt.Stop();
@@ -88,8 +97,7 @@ public class Tests
             sw.Stop();
             Console.WriteLine($"{line} Score: {score} Nodes: {solver.GetNodeCount()} Time: {sw.ElapsedTicks / (TimeSpan.TicksPerMillisecond / 1000L)}");
         }
-        ConsoleGame.DrawBoard(P.GetBoard());
-        Console.WriteLine("\n");
+        ConsoleGame.DrawBoard(P.GetCurrentPlayerPositions(), P.GetOtherPlayerPositions());
     }
 
     /**

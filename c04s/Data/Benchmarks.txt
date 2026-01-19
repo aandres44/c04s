@@ -6,5 +6,5 @@ Part 4 - Alpha-Beta							257212
 
 Part 5 - Move exploration order				134634
 
-
+Part 6 - Bitboards (and improved Cloning)	74694		348310734
 

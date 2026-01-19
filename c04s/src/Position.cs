@@ -1,27 +1,91 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace c04s.src;
 
 /**
- * A class storing a Connect 4 position.
- * Function are relative to the current player to play.
- * Position containing aligment are not supported by this class.
- */
+* A class storing a Connect 4 position.
+* Function are relative to the current player to play.
+* Position containing aligment are not supported by this class.
+* 
+* A binary bitboard representationis used.
+* Each column is encoded on HEIGH + 1 bits.
+* 
+* Example of bit order to encode for a 7x6 board
+* .  .  .  .  .  .  .
+* 5 12 19 26 33 40 47
+* 4 11 18 25 32 39 46
+* 3 10 17 24 31 38 45
+* 2  9 16 23 30 37 44
+* 1  8 15 22 29 36 43
+* 0  7 14 21 28 35 42 
+* 
+* Position is stored as
+* - a bitboard "mask" with 1 on any color stones
+* - a bitboard "currentPlayer" with 1 on stones of current player
+* 
+* "currentPlayer" bitboard can be transformed into a compact and non ambiguous key
+* by adding an extra bit on top of the last non empty cell of each column.
+* This allow to identify all the empty cells whithout needing "mask" bitboard
+* 
+* currentPlayer "x" = 1, opponent "o" = 0
+* board     position  mask      key       bottom
+*           0000000   0000000   0000000   0000000
+* .......   0000000   0000000   0001000   0000000
+* ...o...   0000000   0001000   0010000   0000000
+* ..xx...   0011000   0011000   0011000   0000000
+* ..ox...   0001000   0011000   0001100   0000000
+* ..oox..   0000100   0011100   0000110   0000000
+* ..oxxo.   0001100   0011110   1101101   1111111
+*
+* currentPlayer "o" = 1, opponent "x" = 0
+* board     position  mask      key       bottom
+*           0000000   0000000   0001000   0000000
+* ...x...   0000000   0001000   0000000   0000000
+* ...o...   0001000   0001000   0011000   0000000
+* ..xx...   0000000   0011000   0000000   0000000
+* ..ox...   0010000   0011000   0010100   0000000
+* ..oox..   0011000   0011100   0011010   0000000
+* ..oxxo.   0010010   0011110   1110011   1111111
+*
+* key is an unique representation of a board key = position + mask + bottom
+* in practice, as bottom is constant, key = position + mask is also a 
+* non-ambigous representation of the position.
+*/
 internal class Position : ICloneable
 {
     public const int WIDTH = 7;  // Width of the board
     public const int HEIGHT = 6; // Height of the board
 
-    private int[,] board; // 0 if cell is empty, 1 for first player and 2 for second player.
-    private int[] height; // number of stones per column
-    private uint ply;     // number of half moves played since the beinning of the game.
+    private ulong currentPosition;
+    private ulong mask;
+    private uint ply;     // number of half moves played since the beinning of the game
 
     public Position()
     {
-        board = new int[WIDTH, HEIGHT];
-        height = new int[WIDTH];
+        currentPosition = 0;
+        mask = 0;
         ply = 0;
     }
+
+    /// <summary>
+    /// Gets the ulong position
+    /// </summary>
+    /// <returns>The current position</returns>
+    public ulong GetCurrentPlayerPositions()
+    {
+        return currentPosition;
+    }
+
+    /// <summary>
+    /// Gets the ulong position
+    /// </summary>
+    /// <returns>The current position</returns>
+    public ulong GetOtherPlayerPositions()
+    {
+        return currentPosition ^ mask;
+    }
+
 
 
     /**
@@ -31,7 +95,7 @@ internal class Position : ICloneable
      */
     public bool CanPlay(int col)
     {
-        return height[col] < HEIGHT;
+        return (mask & TopMask(col)) == 0;
     }
 
     /**
@@ -42,8 +106,8 @@ internal class Position : ICloneable
      */
     public void Play(int col)
     {
-        board[col, height[col]] = (int)(1 + ply%2); // Sets the current player
-        height[col]++;
+        currentPosition ^= mask;
+        mask |= mask + BottomMask(col);
         ply++;
     }
 
@@ -63,7 +127,8 @@ internal class Position : ICloneable
         for (uint i = 0; i < seq.Length; i++)
         {
             int col = seq[(int)i] - '1'; // Substract 1 since the sequence comes on 1-based index
-            if (col < 0 || col >= WIDTH || !CanPlay(col) || IsWinningMove(col)) {
+            if (col < 0 || col >= WIDTH || !CanPlay(col) || IsWinningMove(col))
+            {
                 return i; // invalid move
             }
             Play(col);
@@ -79,32 +144,9 @@ internal class Position : ICloneable
      */
     public bool IsWinningMove(int col)
     {
-        int currentPlayer = 1 + (int)ply % 2;
-        // check for vertical alignments
-        if (height[col] >= 3
-            && board[col,height[col] - 1] == currentPlayer
-            && board[col,height[col] - 2] == currentPlayer
-            && board[col,height[col] - 3] == currentPlayer)
-        {
-            return true;
-        }
-        for (int dy = -1; dy <= 1; dy++) // Iterate on horizontal (dy = 0) or two diagonal directions (dy = -1 or dy = 1).
-        {
-            int streak = 0; // counter of the number of stones of current player surronding the played stone in tested direction.
-            for (int dx = -1; dx <= 1; dx += 2) // count continuous stones of current player on the left, then right of the played column.
-            {
-                for (int x = col + dx, y = height[col] + dx * dy; x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT && board[x, y] == currentPlayer; streak++)
-                {
-                    x += dx;
-                    y += dx * dy;
-                }
-            }
-            if (streak >= 3) // there is an aligment if at least 3 other stones of the current user 
-            {               // are surronding the played stone in the tested direction.
-                return true;
-            }
-        }
-        return false;
+        ulong pos = currentPosition;
+        pos |= (mask + BottomMask(col)) & ColumnMask(col);
+        return Alignment(pos);
     }
 
     /**    
@@ -115,13 +157,62 @@ internal class Position : ICloneable
         return ply;
     }
 
-    /// <summary>
-    /// Gets the current value of the board in the Position
-    /// </summary>
-    /// <returns>The board representing the Position</returns>
-    public int[,] GetBoard()
+    /**    
+    * @return a compact representation of a position on WIDTH*(HEIGHT+1) bits.
+    */
+    public ulong Key()
     {
-        return board;
+        return currentPosition + mask;
+    }
+
+    /**
+    * Test an alignment for current player (identified by one in the bitboard pos)
+    * @param a bitboard position of a player's cells.
+    * @return true if the player has a 4-alignment.
+    */
+    private static bool Alignment(ulong pos)
+    {
+        // horizontal 
+        ulong m = pos & (pos >> (HEIGHT + 1));
+        if ((m & (m >> (2 * (HEIGHT + 1)))) != 0)
+        {
+            return true;
+        }
+
+        // diagonal 1
+        m = pos & (pos >> HEIGHT);
+        if ((m & (m >> (2 * HEIGHT))) != 0)
+        {
+            return true;
+        }
+
+        // diagonal 2 
+        m = pos & (pos >> (HEIGHT + 2));
+        if ((m & (m >> (2 * (HEIGHT + 2)))) != 0) { return true; }
+
+        // vertical;
+        m = pos & (pos >> 1);
+        if ((m & (m >> 2)) != 0) { return true; }
+
+        return false;
+    }
+
+    // return a bitmask containg a single 1 corresponding to the top cel of a given column
+    private static ulong TopMask(int col)
+    {
+        return ((ulong)(1) << (HEIGHT - 1)) << col * (HEIGHT + 1);
+    }
+
+    // return a bitmask containg a single 1 corresponding to the bottom cell of a given column
+    private static ulong BottomMask(int col)
+    {
+        return (ulong)(1) << col * (HEIGHT + 1);
+    }
+
+    // return a bitmask 1 on all the cells of a given column
+    private static ulong ColumnMask(int col)
+    {
+        return (((ulong)(1) << HEIGHT) - 1) << col * (HEIGHT + 1);
     }
 
     /// <summary>
@@ -132,8 +223,8 @@ internal class Position : ICloneable
     {
         return new Position
         {
-            board = board.Clone() as int[,] ?? new int[WIDTH,HEIGHT],
-            height = height.Clone() as int[] ?? new int[WIDTH],
+            currentPosition = this.currentPosition,
+            mask = this.mask,
             ply = this.ply
         };
     }
