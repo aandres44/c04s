@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -12,6 +13,18 @@ internal class Solver
 {
     private ulong nodeCount; // counter of explored nodes.
 
+    private int[] columnOrder;
+
+    public Solver()
+    {
+        nodeCount = 0;
+        columnOrder = new int[Position.WIDTH];
+        for (int i = 0; i < Position.WIDTH; i++)
+        {
+            columnOrder[i] = Position.WIDTH / 2 + (1 - 2 * (i % 2)) * (i + 1) / 2; // initialize the column exploration order, starting with center columns
+        }
+    }
+
     /// <summary>
     /// Recursively solve a connect 4 position using negamax variant of min-max algorithm.    
     /// </summary>
@@ -23,7 +36,8 @@ internal class Solver
     /// - Negative score if your opponent can force you to lose.<br></br>
     ///   Your score is the oposite of the number of moves before the end you will lose (the faster you lose, the lower your score).<br></br>
     /// </returns>
-    public int Negamax(Position P) {
+    public int Negamax(Position P, int alpha, int beta) {
+        Trace.Assert(alpha < beta);
         nodeCount++; // increment counter of explored nodes
 
         if (P.NbMoves() == Position.WIDTH * Position.HEIGHT) // check for draw game
@@ -31,27 +45,44 @@ internal class Solver
             return 0;
         }
 
-
         for (int x = 0; x < Position.WIDTH; x++) // check if current player can win next move
         {
             if (P.CanPlay(x) && P.IsWinningMove(x))
             {
-                return (Position.WIDTH * Position.HEIGHT+1 - (int) P.NbMoves())/2;
+                return (Position.WIDTH * Position.HEIGHT + 1 - (int) P.NbMoves())/2;
             }
         }
-        
-        int bestScore = -Position.WIDTH * Position.HEIGHT; // init the best possible score with a lower bound of score.
+
+        int max = (Position.WIDTH * Position.HEIGHT - 1 - (int) P.NbMoves()) / 2;   // upper bound of our score as we cannot win immediately
+        if (beta > max)
+        {
+            beta = max;                     // there is no need to keep beta above our max possible score.
+            if (alpha >= beta)  // prune the exploration if the [alpha;beta] window is empty.
+            {
+                return beta;
+            }
+        }
+
         for (int x = 0; x < Position.WIDTH; x++) // compute the score of all possible next move and keep the best one
         {
-            if (P.CanPlay(x))
+            if (P.CanPlay(columnOrder[x]))
             {
                 Position P2 = (Position)P.Clone();
-                P2.Play(x);               // It's opponent turn in P2 position after current player plays x column.
-                int score = -Negamax(P2); // If current player plays col x, his score will be the opposite of opponent's score after playing col x
-                if (score > bestScore) { bestScore = score; } // keep track of best possible score so far.
+                P2.Play(columnOrder[x]);               // It's opponent turn in P2 position after current player plays x column.
+                int score = -Negamax(P2, -beta, -alpha); // explore opponent's score within [-beta;-alpha] windows:
+                                                         // no need to have good precision for score better than beta (opponent's score worse than -beta)
+                                                         // no need to check for score worse than alpha (opponent's score worse better than -alpha)
+                if (score >= beta) // prune the exploration if we find a possible move better than what we were looking for.
+                {
+                    return score;
+                }
+                if (score > alpha) // reduce the [alpha;beta] window for next exploration, as we only 
+                {                  // need to search for a position that is better than the best so far.
+                    alpha = score;
+                }
             }
         }
-        return bestScore;
+        return alpha;
     }
 
     /// <summary>
@@ -59,10 +90,17 @@ internal class Solver
     /// </summary>
     /// <param name="P"></param>
     /// <returns>The final score of all posible nodes</returns>
-    public int Solve(Position P)
+    public int Solve(Position P, bool weak = false)
     {
         nodeCount = 0;
-        return Negamax(P);
+        if (weak)
+        {
+            return Negamax(P, -1, 1);
+        }
+        else
+        {
+            return Negamax(P, -Position.WIDTH * Position.HEIGHT / 2, Position.WIDTH * Position.HEIGHT / 2);
+        }
     }
 
     /// <summary>

@@ -1,6 +1,10 @@
-Time in ms				End-Easy
+Time in ms									End-Easy	Middle-Easy
 
-Part 3 - Negamax		4672359
+Part 3 - Negamax							4672359
 
-Part 4 - Alpha-Beta		
+Part 4 - Alpha-Beta							257212
+
+Part 5 - Move exploration order				134634
+
+
 
