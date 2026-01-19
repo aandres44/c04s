@@ -1,0 +1,6 @@
+Time in ms				End-Easy
+
+Part 3 - Negamax		4672359
+
+Part 4 - Alpha-Beta		
+
