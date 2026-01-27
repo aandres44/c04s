@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Linq;
+using System.Text;
+using System.Xml.Linq;
 
 namespace c04s.src;
 
@@ -45,29 +46,49 @@ public class Tests
         Solver solver = new();
         string line;
         int l = 1; // Initialize the line counter
-        Stopwatch swt = Stopwatch.StartNew();
-
+        long start = Stopwatch.GetTimestamp();
+        long totalTime = 0;
+        ulong totalNodes = 0;
+        var output = new StringBuilder(1 << 20); // ~1 MB buffer
         // Read lines until the end of the stream
         while ((line = Console.ReadLine()!) != null)
         {
-            line = line.Split(' ').First();
+            // Fast trim at first space (avoid Split + LINQ)
+            int space = line.IndexOf(' ');
+            if (space >= 0)
+                line = line[..space];
+
             Position P = new();
             if (P.Play(line) != line.Length)
             {
+#if DEBUG
                 Trace.WriteLine($"Line {l}: Invalid move {P.NbMoves() + 1} \"{line}\"\n");
+#endif
             }
             else
             {
-                Stopwatch sw = Stopwatch.StartNew();
+                solver.Reset();
+                long startSmall = Stopwatch.GetTimestamp();
                 int score = solver.Solve(P);
-                sw.Stop();
-                Console.WriteLine($"{line} {score} {solver.GetNodeCount()} {sw.ElapsedTicks / (TimeSpan.TicksPerMillisecond / 1000L)}");
+                long microsSmall = (Stopwatch.GetTimestamp() - startSmall) * 1_000_000 / Stopwatch.Frequency;
+                ulong nodes = solver.GetNodeCount();
+                totalTime += microsSmall;
+                totalNodes += nodes;
+                output.Append(line)
+                .Append(' ')
+                .Append(score)
+                .Append(' ')
+                .Append(nodes)
+                .Append(' ')
+                .Append(microsSmall)
+                .AppendLine();
             }
-            ConsoleGame.DrawBoard(P.GetCurrentPlayerPositions(), P.GetOtherPlayerPositions());
+            output.AppendLine();
             l++; // Increment the line counter
         }
-        swt.Stop();
-        Console.WriteLine($"Total {swt.ElapsedTicks / (TimeSpan.TicksPerMillisecond / 1000L)}");
+        Console.WriteLine(output.ToString());
+        long micros = (Stopwatch.GetTimestamp() - start) * 1_000_000 / Stopwatch.Frequency;
+        Console.WriteLine($"Total {micros}, mean time {totalTime / l}, mean nodes {(int)totalNodes / l}");
     }
 
     /**
@@ -113,33 +134,52 @@ public class Tests
     public static void RunTestsFromFile()
     {
         Solver solver = new();
-        string line;
+        string? line;
         string filePath = "Data/Test_L3_R1";
         // Use a StreamReader with the standard input stream
         using StreamReader reader = new(filePath);
         int l = 1; // Initialize the line counter
-        Stopwatch swt = Stopwatch.StartNew();
+        Position P = new();
+        var output = new StringBuilder(1 << 20); // ~1 MB buffer
+        long start = Stopwatch.GetTimestamp();
+        long totalTime = 0;
+        ulong totalNodes = 0;
         // Read lines until the end of the stream
-        while ((line = reader.ReadLine()!) != null)
+        while ((line = reader.ReadLine()) != null)
         {
-            line = line.Split(' ').First();
-            Position P = new();
+            int space = line.IndexOf(' ');
+            line = space >= 0 ? line[..space] : line;
+            P.Reset();
             if (P.Play(line) != line.Length)
             {
+#if DEBUG
                 Trace.WriteLine($"Line {l}: Invalid move {P.NbMoves() + 1} \"{line}\"\n");
+#endif
             }
             else
             {
-                Stopwatch sw = Stopwatch.StartNew();
+                solver.Reset();
+                long startSmall = Stopwatch.GetTimestamp();
                 int score = solver.Solve(P);
-                sw.Stop();
-                Console.WriteLine($"{line} {score} {solver.GetNodeCount()} {sw.ElapsedTicks / (TimeSpan.TicksPerMillisecond / 1000L)}");
+                long microsSmall = (Stopwatch.GetTimestamp() - startSmall) * 1_000_000 / Stopwatch.Frequency;
+                ulong nodes = solver.GetNodeCount();
+                totalTime += microsSmall;
+                totalNodes += nodes;
+                output.Append(line)
+              .Append(' ')
+              .Append(score)
+              .Append(' ')
+              .Append(nodes)
+              .Append(' ')
+              .Append(microsSmall)
+              .AppendLine();
             }
-            Console.WriteLine("\n");
+            output.AppendLine();
             l++; // Increment the line counter
         }
-        swt.Stop();
-        Console.WriteLine($"Total {swt.ElapsedTicks / (TimeSpan.TicksPerMillisecond / 1000L)}");
+        Console.WriteLine(output.ToString());
+        long micros = (Stopwatch.GetTimestamp() - start) * 1_000_000 / Stopwatch.Frequency;
+        Console.WriteLine($"Total {micros}, mean time {totalTime / l}, mean nodes {(int)totalNodes / l}");
     }
 }
 

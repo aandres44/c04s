@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace c04s.src;
@@ -52,16 +53,26 @@ namespace c04s.src;
 * in practice, as bottom is constant, key = position + mask is also a 
 * non-ambigous representation of the position.
 */
-internal class Position : ICloneable
+internal struct Position
 {
     public const int WIDTH = 7;  // Width of the board
     public const int HEIGHT = 6; // Height of the board
+    public const int MIN_SCORE = -(WIDTH * HEIGHT) / 2 + 3;
+    public const int MAX_SCORE = (WIDTH * HEIGHT + 1) / 2 - 3;
+    public const int MAX_MOVES = Position.WIDTH * Position.HEIGHT;
 
     private ulong currentPosition;
     private ulong mask;
     private uint ply;     // number of half moves played since the beinning of the game
 
     public Position()
+    {
+        currentPosition = 0;
+        mask = 0;
+        ply = 0;
+    }
+    
+    public void Reset()
     {
         currentPosition = 0;
         mask = 0;
@@ -81,7 +92,7 @@ internal class Position : ICloneable
     /// Gets the ulong position
     /// </summary>
     /// <returns>The current position</returns>
-    public ulong GetOtherPlayerPositions()
+    public readonly ulong GetOtherPlayerPositions()
     {
         return currentPosition ^ mask;
     }
@@ -93,7 +104,8 @@ internal class Position : ICloneable
      * @param col: 0-based index of column to play
      * @return true if the column is playable, false if the column is already full.
      */
-    public bool CanPlay(int col)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool CanPlay(int col)
     {
         return (mask & TopMask(col)) == 0;
     }
@@ -104,11 +116,22 @@ internal class Position : ICloneable
      *
      * @param col: 0-based index of a playable column.
      */
-    public void Play(int col)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong Play(int col)
     {
+        ulong move = (mask + BottomMask(col)) & ColumnMask(col);
         currentPosition ^= mask;
-        mask |= mask + BottomMask(col);
+        mask |= move;
         ply++;
+        return move;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Undo(ulong move)
+    {
+        ply--;
+        mask ^= move;
+        currentPosition ^= mask;
     }
 
     /*
@@ -142,7 +165,8 @@ internal class Position : ICloneable
      * @param col: 0-based index of a playable column.
      * @return true if current player makes an alignment by playing the corresponding column col.
      */
-    public bool IsWinningMove(int col)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool IsWinningMove(int col)
     {
         ulong pos = currentPosition;
         pos |= (mask + BottomMask(col)) & ColumnMask(col);
@@ -152,7 +176,8 @@ internal class Position : ICloneable
     /**    
      * @return number of moves played from the beginning of the game.
      */
-    public uint NbMoves()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly uint NbMoves()
     {
         return ply;
     }
@@ -160,7 +185,8 @@ internal class Position : ICloneable
     /**    
     * @return a compact representation of a position on WIDTH*(HEIGHT+1) bits.
     */
-    public ulong Key()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly ulong Key()
     {
         return currentPosition + mask;
     }
@@ -213,19 +239,5 @@ internal class Position : ICloneable
     private static ulong ColumnMask(int col)
     {
         return (((ulong)(1) << HEIGHT) - 1) << col * (HEIGHT + 1);
-    }
-
-    /// <summary>
-    /// Implements the System.ICloneable Interface
-    /// </summary>
-    /// <returns>Deep copy of the current position</returns>
-    public object Clone()
-    {
-        return new Position
-        {
-            currentPosition = this.currentPosition,
-            mask = this.mask,
-            ply = this.ply
-        };
     }
 }

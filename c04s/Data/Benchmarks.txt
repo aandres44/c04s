@@ -1,10 +1,18 @@
-Time in ms									End-Easy	Middle-Easy
 
-Part 3 - Negamax							4672359
+Part 3 - Negamax													Total time	Mean Time	Mean Node
+						End    - Easy								   4672359
 
-Part 4 - Alpha-Beta							257212
+Part 4 - Alpha-Beta													Total time	Mean Time	Mean Node
+						End    - Easy									257212
 
-Part 5 - Move exploration order				134634
+Part 5 - Move exploration order										Total time	Mean Time	Mean Node
+						End    - Easy									134634
 
-Part 6 - Bitboards (and improved Cloning)	74694		348310734
+Part 6 - Bitboards (and improved Cloning)							Total time	Mean Time	Mean Node
+						End    - Easy									 74694
+						Middle - Easy								 348310734
+
+Part 7 - Transposition Table (With Do/Undo and improved console)	Total time	Mean Time	Mean Node
+						End    - Easy								     39170		   22		  117
+						Middle - Easy								 171400927	   171213	   961453
 
