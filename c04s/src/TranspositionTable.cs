@@ -12,37 +12,20 @@ namespace c04s.src;
 /// Transposition Table is a simple hash map with fixed storage size.
 /// In case of collision we keep the last entry and override the previous one.
 /// </summary>
-public class TranspositionTable
+public sealed class TranspositionTable
 {
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Entry
-    {
-        public ulong Key; // 56 bits used
-        public byte Val;  // 8 bits
-        public byte Age;  // 8 bits
-        public sbyte BestMove; // 0–6 valid, 255 = unknown
-    }
-
-    private readonly Entry[] T;
-    private readonly ulong mask;
+    private readonly ulong[] table;     // packed entries
+    private readonly int size;          // prime table size
     private byte currentAge = 1;
 
     public TranspositionTable(int sizeMB)
-	{
-        int entrySize = Unsafe.SizeOf<Entry>(); // Usually 12 or 16 depending on JIT padding
+    {
         long bytes = (long)sizeMB * 1024 * 1024;
-        int numEntries = (int)(bytes / entrySize);
+        int entries = (int)(bytes / sizeof(ulong));
 
-        // Power of 2 rounding
-        int pow2 = 1 << (31 - BitOperations.LeadingZeroCount((uint)numEntries));
-
-        // GC.AllocateUninitializedArray is the fastest way to get a large array in 2026
-        // because it skips the initial zero-clearing (which you handle via Age logic).
-        T = GC.AllocateUninitializedArray<Entry>(pow2);
-        mask = (ulong)(pow2 - 1);
-
-        // Manually clear once at the very start to ensure Age 0 is everywhere
-        Array.Clear(T, 0, T.Length);
+        size = PreviousPrime(entries);   // Step 11: prime size
+        table = GC.AllocateUninitializedArray<ulong>(size);
+        Array.Clear(table);              // age = 0 means empty
     }
 
     /// <summary>
@@ -51,7 +34,7 @@ public class TranspositionTable
     /// <param name="key"></param>
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint GetIndex(ulong key) => (uint)(key & mask);
+    private int Index(ulong key) => (int)(key % (ulong)size);
 
     /*
 	* Empty the Transition Table.
@@ -61,7 +44,7 @@ public class TranspositionTable
         // O(1) Reset: Just increment the age
         if (++currentAge == 0)
         { // fill everything with 0, because 0 value means missing data
-            Array.Clear(T, 0, T.Length); // Only full clear once every 255 resets
+            Array.Clear(table); // Only full clear once every 255 resets
             currentAge = 1;
         }
     }
@@ -74,12 +57,14 @@ public class TranspositionTable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Put(ulong key, byte val, sbyte bestMove)
     {
-        int i = (int)GetIndex(key);
-        ref Entry target = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(T), i);
-        target.Key = key;
-        target.Val = val;
-        target.Age = currentAge;
-        target.BestMove = bestMove;
+        uint key32 = (uint)(key ^ (key >> 32)); // Step 11: key truncation with mixing
+        ulong packed =
+            ((ulong)key32 << 32) |
+            ((ulong)val << 24) |
+            ((ulong)currentAge << 16) |
+            ((ulong)(byte)bestMove << 8);
+
+        table[Index(key)] = packed;
     }
 
     /** 
@@ -90,13 +75,53 @@ public class TranspositionTable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public byte Get(ulong key)
     {
-        int i = (int)GetIndex(key);
-        ref Entry entry = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(T), i);
-        // Comparison is fast because 'Age' and 'Key' are in the same cache line
-        if (entry.Key == key && entry.Age == currentAge)
-        {
-            return entry.Val;
-        }
+        ulong entry = table[Index(key)];
+        if (entry == 0) return 0;
+
+        uint storedKey = (uint)(entry >> 32);
+        byte age = (byte)(entry >> 16);
+
+        uint key32 = (uint)(key ^ (key >> 32));
+
+        if (storedKey == key32 && age == currentAge)
+            return (byte)(entry >> 24);
+
         return 0;
+    }
+
+    // -------- Prime helper (runs only at init) --------
+    private static int PreviousPrime(int n)
+    {
+        while (n > 2)
+        {
+            if (IsPrime(n)) return n;
+            n--;
+        }
+        return 2;
+    }
+
+    private static bool IsPrime(int n)
+    {
+        if ((n & 1) == 0) return n == 2;
+        int r = (int)Math.Sqrt(n);
+        for (int i = 3; i <= r; i += 2)
+            if (n % i == 0) return false;
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public sbyte GetBestMove(ulong key)
+    {
+        ulong entry = table[Index(key)];
+        if (entry == 0) return -1;
+
+        uint storedKey = (uint)(entry >> 32);
+        byte age = (byte)(entry >> 16);
+        uint key32 = (uint)(key ^ (key >> 32));
+
+        if (storedKey == key32 && age == currentAge)
+            return (sbyte)((entry >> 8) & 0xFF);
+
+        return -1;
     }
 }

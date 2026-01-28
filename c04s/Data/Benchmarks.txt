@@ -31,3 +31,9 @@ Part 10 - Better move ordering										Total time	Mean Time	Mean Node
 						Middle - Easy								    362460	      332	     889
 						Middle-Medium								  86334749		86230	  316339
 						Begin  - Easy								   2787387		 2769	   10173
+
+Part 11 - Optimized TT												Total time	Mean Time	Mean Node
+						End    - Easy								     40310		   20		  54
+						Middle - Easy								    290056	      208	     516
+						Middle-Medium								  17135082		17097	   48244
+						Begin  - Easy								   1313174		 1294	    3687

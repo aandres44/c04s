@@ -35,6 +35,18 @@ internal class Solver
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static byte EncodeScore(int score)
+    {
+        return (byte)(score - Position.MIN_SCORE + 1);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int DecodeScore(byte val)
+    {
+        return val + Position.MIN_SCORE - 1;
+    }
+
     /// <summary>
     /// Recursively solve a connect 4 position using negamax variant of min-max algorithm.    
     /// </summary>
@@ -69,10 +81,10 @@ internal class Solver
 
         int max = (Position.MAX_MOVES - 1 - (int) P.NbMoves()) / 2;   // upper bound of our score as we cannot win immediately
 
-        int val = transTable.Get(P.Key());
-        if (val != 0)
+        byte ttVal = transTable.Get(P.Key());
+        if (ttVal != 0)
         {
-            max = val + Position.MIN_SCORE - 1;
+            max = DecodeScore(ttVal);   // TT stores an upper bound
         }
 
         if (beta > max)
@@ -84,13 +96,30 @@ internal class Solver
             }
         }
         MoveSorter moves = new();
+        byte ttVal2 = transTable.Get(P.Key());
+        sbyte ttMove = -1;
+
+        if (ttVal2 != 0)
+            ttMove = transTable.GetBestMove(P.Key()); // we add this method
+
+        // First push TT best move with max score
+        if (ttMove >= 0)
+        {
+            ulong moveMask = Position.ColumnMask(ttMove);
+            ulong move = next & moveMask;
+            if (move != 0)
+                moves.Add(move, int.MaxValue);
+        }
+
+        // Then other moves
         for (int i = Position.WIDTH - 1; i >= 0; i--)
         {
-            ulong move = next & Position.ColumnMask(columnOrder[i]);
+            int col = columnOrder[i];
+            if (col == ttMove) continue;
+
+            ulong move = next & Position.ColumnMask(col);
             if (move != 0)
-            {
                 moves.Add(move, P.MoveScore(move));
-            }
         }
         while ((next = moves.GetNext()) != 0UL)
         {
@@ -110,7 +139,10 @@ internal class Solver
             }
             
         }
-        transTable.Put(P.Key(), (byte)(alpha - Position.MIN_SCORE + 1), bestMove); // save the upper bound of the position
+        if (alpha < beta) // only store if not cut by beta
+        {
+            transTable.Put(P.Key(), EncodeScore(alpha), bestMove);
+        }
         return (sbyte)alpha;
     }
 
