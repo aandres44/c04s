@@ -66,9 +66,9 @@ internal struct Position
     static readonly ulong BottomMask = Bottom(WIDTH, HEIGHT);
     static readonly ulong BoardMask = BottomMask * ((1UL << HEIGHT) - 1UL);
 
-    private ulong currentPosition;
-    private ulong mask;
-    private uint ply;     // number of half moves played since the beinning of the game
+    private ulong currentPosition;  // bitmap of the current_player stones
+    private ulong mask;             // bitmap of all the already palyed
+    private uint ply;               // number of half moves played since the beinning of the game
 
     public Position()
     {
@@ -124,15 +124,25 @@ internal struct Position
     }
 
     /**
+    * Plays a playable column.
+    * This function should not be called on a non-playable column or a column making an alignment.
+    *
+    * @param col: 0-based index of a playable column.
+    */
+    void PlayCol(int col)
+    {
+        Play((mask + BottomMaskCol(col)) & ColumnMask(col));
+    }
+
+    /**
      * Plays a playable column.
      * This function should not be called on a non-playable column or a column making an alignment.
      *
      * @param col: 0-based index of a playable column.
      */
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong Play(int col)
+    public ulong Play(ulong move)
     {
-        ulong move = (mask + BottomMaskCol(col)) & ColumnMask(col);
         currentPosition ^= mask;
         mask |= move;
         ply++;
@@ -167,7 +177,7 @@ internal struct Position
             {
                 return i; // invalid move
             }
-            Play(col);
+            PlayCol(col);
         }
         return (uint)seq.Length;
     }
@@ -206,15 +216,36 @@ internal struct Position
     * Return a bitmask of the possible winning positions for the opponent
     */
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong OpponentWinningPosition() {
+    public readonly ulong OpponentWinningPosition() {
         return ComputeWinningPosition(currentPosition ^ mask, mask);
       }
 
+    /*
+    * Bitmap of the next possible valid moves for the current player
+    * Including losing moves.
+    */
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly ulong Possible() {
+    public readonly ulong Possible()
+    {
         return (mask + BottomMask) & BoardMask;
-      }
+    }
 
+    /*
+    * counts number of bit set to one in a 64bits integer
+    */
+    public static uint Popcount(ulong m)
+    {
+        uint c;
+        for (c = 0; m != 0; c++) m &= m - 1;
+        return c;
+    }
+
+    /*
+    * @parmam position, a bitmap of the player to evaluate the winning pos
+    * @param mask, a mask of the already played spots
+    *
+    * @return a bitmap of all the winning free spots making an alignment
+    */
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static ulong ComputeWinningPosition(ulong position, ulong mask)
     {
@@ -279,7 +310,7 @@ internal struct Position
     * to make an alignment.
     */
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong PossibleNonLoosingMoves() 
+    public readonly ulong PossibleNonLosingMoves() 
     {
         Debug.Assert(!CanWinNext());
         ulong possibleMask = Possible();
@@ -292,6 +323,19 @@ internal struct Position
             else possibleMask = forcedMoves;    // enforce to play the single forced move
         }
         return possibleMask & ~(opponentWin >> 1);  // avoid to play below an opponent winning spot
+    }
+
+    /**
+    * Score a possible move.
+    *
+    * @param move, a possible move given in a bitmap format.
+    *
+    * The score we are using is the number of winning spots
+    * the current player has after playing the move.
+    */
+    public readonly int MoveScore(ulong move)
+    {
+        return (int)Popcount(ComputeWinningPosition(currentPosition | move, mask));
     }
 
     // return a bitmask containg a single 1 corresponding to the top cel of a given column

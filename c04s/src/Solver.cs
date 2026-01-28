@@ -12,7 +12,7 @@ namespace c04s.src;
 [SkipLocalsInit]
 
 /**
- * A class to solve Connect 4 position using Nagemax variant of min-max algorithm.
+ * A class to solve Connect 4 position using Negamax variant of min-max algorithm.
  */
 internal class Solver
 {
@@ -52,7 +52,7 @@ internal class Solver
         nodeCount++; // increment counter of explored nodes
         sbyte bestMove = -1;
 
-        ulong next = P.PossibleNonLoosingMoves();
+        ulong next = P.PossibleNonLosingMoves();
         if (next == 0) // if no possible non losing move, opponent wins next move
             return (sbyte)(-(Position.MAX_MOVES - P.NbMoves()) / 2);
         if (P.NbMoves() == Position.MAX_MOVES - 2) // check for draw game
@@ -83,26 +83,32 @@ internal class Solver
                 return (sbyte)beta;
             }
         }
-
-        for (int x = 0; x < Position.WIDTH; x++) // compute the score of all possible next move and keep the best one
+        MoveSorter moves = new();
+        for (int i = Position.WIDTH - 1; i >= 0; i--)
         {
-            if ((next & Position.ColumnMask(columnOrder[x])) != 0)
+            ulong move = next & Position.ColumnMask(columnOrder[i]);
+            if (move != 0)
             {
-                ulong move = P.Play(columnOrder[x]);               // It's opponent turn in P2 position after current player plays x column.
-                int score = -Negamax(ref P, -beta, -alpha); // explore opponent's score within [-beta;-alpha] windows:
-                P.Undo(move); // We use Do/Undo instead of Cloning since it is very expensive to do so in C# (.Net)
-                // no need to have good precision for score better than beta (opponent's score worse than -beta)
-                // no need to check for score worse than alpha (opponent's score worse better than -alpha)
-                if (score >= beta) // prune the exploration if we find a possible move better than what we were looking for.
-                {
-                    return (sbyte)score;
-                }
-                if (score > alpha) // reduce the [alpha;beta] window for next exploration, as we only 
-                {                  // need to search for a position that is better than the best so far.
-                    alpha = score;
-                    bestMove = (sbyte)move;
-                }
+                moves.Add(move, P.MoveScore(move));
             }
+        }
+        while ((next = moves.GetNext()) != 0UL)
+        {
+            ulong move = P.Play(next);               // It's opponent turn in P2 position after current player plays x column.
+            int score = -Negamax(ref P, -beta, -alpha); // explore opponent's score within [-beta;-alpha] windows:
+            P.Undo(move); // We use Do/Undo instead of Cloning since it is very expensive to do so in C# (.Net)
+            // no need to have good precision for score better than beta (opponent's score worse than -beta)
+            // no need to check for score worse than alpha (opponent's score worse better than -alpha)
+            if (score >= beta) // prune the exploration if we find a possible move better than what we were looking for.
+            {
+                return (sbyte)score;
+            }
+            if (score > alpha) // reduce the [alpha;beta] window for next exploration, as we only 
+            {                  // need to search for a position that is better than the best so far.
+                alpha = score;
+                bestMove = (sbyte)move;
+            }
+            
         }
         transTable.Put(P.Key(), (byte)(alpha - Position.MIN_SCORE + 1), bestMove); // save the upper bound of the position
         return (sbyte)alpha;

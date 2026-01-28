@@ -25,3 +25,9 @@ Part 9 - Anticipate direct losing moves								Total time	Mean Time	Mean Node
 						Middle - Easy								   1354547	     1337	    7460
 						Middle-Medium									N/A
 						Begin  - Easy								  86931466		86828	  532819
+
+Part 10 - Better move ordering										Total time	Mean Time	Mean Node
+						End    - Easy								     36134		   19		  60
+						Middle - Easy								    362460	      332	     889
+						Middle-Medium								  86334749		86230	  316339
+						Begin  - Easy								   2787387		 2769	   10173
