@@ -16,3 +16,6 @@ Part 7 - Transposition Table (With Do/Undo and improved console)	Total time	Mean
 						End    - Easy								     39170		   22		  117
 						Middle - Easy								 171400927	   171213	   961453
 
+Part 8 - Iterative Deepening & Null Window							Total time	Mean Time	Mean Node
+						End    - Easy								     47276		   29		  158
+						Middle - Easy								   3956657	     3936	    20701

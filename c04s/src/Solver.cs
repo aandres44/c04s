@@ -111,15 +111,24 @@ internal class Solver
     /// <returns>The final score of all posible nodes</returns>
     public int Solve(Position P, bool weak = false)
     {
-        nodeCount = 0;
+        nodeCount = 0; // Relocate this since on Solver instanciation we already set to 0
+        int min = (int)-(Position.MAX_MOVES - P.NbMoves()) / 2;
+        int max = (int)(Position.MAX_MOVES + 1 - P.NbMoves()) / 2;
         if (weak)
         {
-            return Negamax(ref P, -1, 1);
+            min = -1;
+            max = 1;
         }
-        else
-        {
-            return Negamax(ref P, -Position.MAX_MOVES / 2, Position.MAX_MOVES / 2);
+        while (min < max)
+        {                    // iteratively narrow the min-max exploration window
+            int med = min + (max - min) / 2;
+            if (med <= 0 && min / 2 < med) med = min / 2;
+            else if (med >= 0 && max / 2 > med) med = max / 2;
+            int r = Negamax(ref P, med, med + 1);   // use a null depth window to know if the actual score is greater or smaller than med
+            if (r <= med) max = r;
+            else min = r;
         }
+        return min;
     }
 
     /// <summary>
