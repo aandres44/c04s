@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using static System.Net.Mime.MediaTypeNames;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace c04s.src;
@@ -47,20 +48,23 @@ internal class Solver
     /// </returns>
     public sbyte Negamax(ref Position P, int alpha, int beta) {
         Trace.Assert(alpha < beta);
+        Trace.Assert(!P.CanWinNext());
         nodeCount++; // increment counter of explored nodes
         sbyte bestMove = -1;
 
-        if (P.NbMoves() == Position.MAX_MOVES) // check for draw game
+        ulong next = P.PossibleNonLoosingMoves();
+        if (next == 0) // if no possible non losing move, opponent wins next move
+            return (sbyte)(-(Position.MAX_MOVES - P.NbMoves()) / 2);
+        if (P.NbMoves() == Position.MAX_MOVES - 2) // check for draw game
         {
             return 0;
         }
 
-        for (int x = 0; x < Position.WIDTH; x++) // check if current player can win next move
+        int min = (int)-(Position.MAX_MOVES - 2 - P.NbMoves()) / 2;  // lower bound of score as opponent cannot win next move
+        if (alpha < min)
         {
-            if (P.CanPlay(x) && P.IsWinningMove(x))
-            {
-                return (sbyte)((Position.MAX_MOVES + 1 - (int) P.NbMoves())/2);
-            }
+            alpha = min;                     // there is no need to keep beta above our max possible score.
+            if (alpha >= beta) return (sbyte)alpha;  // prune the exploration if the [alpha;beta] window is empty.
         }
 
         int max = (Position.MAX_MOVES - 1 - (int) P.NbMoves()) / 2;   // upper bound of our score as we cannot win immediately
@@ -82,7 +86,7 @@ internal class Solver
 
         for (int x = 0; x < Position.WIDTH; x++) // compute the score of all possible next move and keep the best one
         {
-            if (P.CanPlay(columnOrder[x]))
+            if ((next & Position.ColumnMask(columnOrder[x])) != 0)
             {
                 ulong move = P.Play(columnOrder[x]);               // It's opponent turn in P2 position after current player plays x column.
                 int score = -Negamax(ref P, -beta, -alpha); // explore opponent's score within [-beta;-alpha] windows:
@@ -111,6 +115,8 @@ internal class Solver
     /// <returns>The final score of all posible nodes</returns>
     public int Solve(Position P, bool weak = false)
     {
+        if (P.CanWinNext()) // check if win in one move as the Negamax function does not support this case.
+            return (int)(Position.MAX_MOVES + 1 - P.NbMoves()) / 2;
         nodeCount = 0; // Relocate this since on Solver instanciation we already set to 0
         int min = (int)-(Position.MAX_MOVES - P.NbMoves()) / 2;
         int max = (int)(Position.MAX_MOVES + 1 - P.NbMoves()) / 2;

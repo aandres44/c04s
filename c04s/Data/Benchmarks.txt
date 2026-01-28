@@ -19,3 +19,9 @@ Part 7 - Transposition Table (With Do/Undo and improved console)	Total time	Mean
 Part 8 - Iterative Deepening & Null Window							Total time	Mean Time	Mean Node
 						End    - Easy								     47276		   29		  158
 						Middle - Easy								   3956657	     3936	    20701
+
+Part 9 - Anticipate direct losing moves								Total time	Mean Time	Mean Node
+						End    - Easy								     33501		   16		  83
+						Middle - Easy								   1354547	     1337	    7460
+						Middle-Medium									N/A
+						Begin  - Easy								  86931466		86828	  532819

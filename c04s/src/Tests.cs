@@ -21,6 +21,14 @@ public class Tests
      * Test_L1_R3	                    Begin-Hard	    moves <= 14	        28 <= remaining
      */
 
+    private const string DATA_PATH = "Data/";
+    private const string END_EASY = DATA_PATH + "Test_L3_R1";
+    private const string MIDDLE_EASY = DATA_PATH + "Test_L2_R1";
+    private const string MIDDLE_MEDIUM = DATA_PATH + "Test_L2_R2";
+    private const string BEGIN_EASY = DATA_PATH + "Test_L1_R1";
+    private const string BEGIN_MEDIUM = DATA_PATH + "Test_L1_R2";
+    private const string BEGIN_HARD = DATA_PATH + "Test_L1_R3";
+
     /**
      * Test position 44455554221:
      * .......
@@ -135,7 +143,7 @@ public class Tests
     {
         Solver solver = new();
         string? line;
-        string filePath = "Data/Test_L3_R1";
+        string filePath = END_EASY;
         // Use a StreamReader with the standard input stream
         using StreamReader reader = new(filePath);
         int l = 1; // Initialize the line counter

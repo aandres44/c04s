@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
@@ -7,7 +8,7 @@ namespace c04s.src;
 /**
 * A class storing a Connect 4 position.
 * Function are relative to the current player to play.
-* Position containing aligment are not supported by this class.
+* Position containing alignment are not supported by this class.
 * 
 * A binary bitboard representationis used.
 * Each column is encoded on HEIGH + 1 bits.
@@ -61,6 +62,10 @@ internal struct Position
     public const int MAX_SCORE = (WIDTH * HEIGHT + 1) / 2 - 3;
     public const int MAX_MOVES = Position.WIDTH * Position.HEIGHT;
 
+    // Static bitmaps
+    static readonly ulong BottomMask = Bottom(WIDTH, HEIGHT);
+    static readonly ulong BoardMask = BottomMask * ((1UL << HEIGHT) - 1UL);
+
     private ulong currentPosition;
     private ulong mask;
     private uint ply;     // number of half moves played since the beinning of the game
@@ -83,7 +88,7 @@ internal struct Position
     /// Gets the ulong position
     /// </summary>
     /// <returns>The current position</returns>
-    public ulong GetCurrentPlayerPositions()
+    public readonly ulong GetCurrentPlayerPositions()
     {
         return currentPosition;
     }
@@ -97,7 +102,15 @@ internal struct Position
         return currentPosition ^ mask;
     }
 
-
+    /*
+    * Generate a bitmask containing one for the bottom slot of each colum
+    */
+    public static ulong Bottom(int width, int height)
+    {
+        return width == 0
+        ? 0UL
+        : Bottom(width - 1, height) | (1UL << ((width - 1) * (height + 1)));
+    }
 
     /**
      * Indicates whether a column is playable.
@@ -107,7 +120,7 @@ internal struct Position
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool CanPlay(int col)
     {
-        return (mask & TopMask(col)) == 0;
+        return (mask & TopMaskCol(col)) == 0;
     }
 
     /**
@@ -119,7 +132,7 @@ internal struct Position
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong Play(int col)
     {
-        ulong move = (mask + BottomMask(col)) & ColumnMask(col);
+        ulong move = (mask + BottomMaskCol(col)) & ColumnMask(col);
         currentPosition ^= mask;
         mask |= move;
         ply++;
@@ -141,7 +154,7 @@ internal struct Position
     * @return number of played moves. Processing will stop at first invalid move that can be:
     *           - invalid character (non digit, or digit >= WIDTH)
     *           - playing a colum the is already full
-    *           - playing a column that makes an aligment (we only solve non).
+    *           - playing a column that makes an alignment (we only solve non).
     *         Caller can check if the move sequence was valid by comparing the number of 
     *         processed moves to the length of the sequence.
     */
@@ -159,6 +172,15 @@ internal struct Position
         return (uint)seq.Length;
     }
 
+    /*
+    * return true if current player can win next move
+    */
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool CanWinNext()
+    {
+        return (WinningPosition() & Possible()) != 0;
+    }
+
     /**
      * Indicates whether the current player wins by playing a given column.
      * This function should never be called on a non-playable column.
@@ -168,10 +190,67 @@ internal struct Position
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool IsWinningMove(int col)
     {
-        ulong pos = currentPosition;
-        pos |= (mask + BottomMask(col)) & ColumnMask(col);
-        return Alignment(pos);
+        return (WinningPosition() & Possible() & ColumnMask(col)) != 0;
     }
+
+    /*
+    * Return a bitmask of the possible winning positions for the current player
+    */
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly ulong WinningPosition()
+    {
+        return ComputeWinningPosition(currentPosition, mask);
+    }
+
+    /*
+    * Return a bitmask of the possible winning positions for the opponent
+    */
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong OpponentWinningPosition() {
+        return ComputeWinningPosition(currentPosition ^ mask, mask);
+      }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly ulong Possible() {
+        return (mask + BottomMask) & BoardMask;
+      }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static ulong ComputeWinningPosition(ulong position, ulong mask)
+    {
+        // vertical
+        ulong r = (position << 1) & (position << 2) & (position << 3);
+
+        // horizontal
+        ulong p = (position << (HEIGHT + 1)) & (position << (2 * (HEIGHT + 1)));
+        r |= p & (position << (3 * (HEIGHT + 1)));
+        r |= p & (position >> (HEIGHT + 1));
+
+        p = (position >> (HEIGHT + 1)) & (position >> (2 * (HEIGHT + 1)));
+        r |= p & (position << (HEIGHT + 1));
+        r |= p & (position >> (3 * (HEIGHT + 1)));
+
+        // diagonal 1
+        p = (position << HEIGHT) & (position << (2 * HEIGHT));
+        r |= p & (position << (3 * HEIGHT));
+        r |= p & (position >> HEIGHT);
+
+        p = (position >> HEIGHT) & (position >> (2 * HEIGHT));
+        r |= p & (position << HEIGHT);
+        r |= p & (position >> (3 * HEIGHT));
+
+        // diagonal 2
+        p = (position << (HEIGHT + 2)) & (position << (2 * (HEIGHT + 2)));
+        r |= p & (position << (3 * (HEIGHT + 2)));
+        r |= p & (position >> (HEIGHT + 2));
+
+        p = (position >> (HEIGHT + 2)) & (position >> (2 * (HEIGHT + 2)));
+        r |= p & (position << (HEIGHT + 2));
+        r |= p & (position >> (3 * (HEIGHT + 2)));
+
+        return r & (BoardMask ^ mask);
+    }
+
 
     /**    
      * @return number of moves played from the beginning of the game.
@@ -191,52 +270,44 @@ internal struct Position
         return currentPosition + mask;
     }
 
-    /**
-    * Test an alignment for current player (identified by one in the bitboard pos)
-    * @param a bitboard position of a player's cells.
-    * @return true if the player has a 4-alignment.
+    /*
+    * Return a bitmap of all the possible next moves the do not lose in one turn.
+    * A losing move is a move leaving the possibility for the opponent to win directly.
+    *
+    * Warning this function is intended to test position where you cannot win in one turn
+    * If you have a winning move, this function can miss it and prefer to prevent the opponent
+    * to make an alignment.
     */
-    private static bool Alignment(ulong pos)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong PossibleNonLoosingMoves() 
     {
-        // horizontal 
-        ulong m = pos & (pos >> (HEIGHT + 1));
-        if ((m & (m >> (2 * (HEIGHT + 1)))) != 0)
+        Debug.Assert(!CanWinNext());
+        ulong possibleMask = Possible();
+        ulong opponentWin = OpponentWinningPosition();
+        ulong forcedMoves = possibleMask & opponentWin;
+        if(forcedMoves != 0)
         {
-            return true;
+            if((forcedMoves & (forcedMoves - 1)) != 0) // check if there is more than one forced move
+                return 0;                           // the opponnent has two winning moves and you cannot stop him
+            else possibleMask = forcedMoves;    // enforce to play the single forced move
         }
-
-        // diagonal 1
-        m = pos & (pos >> HEIGHT);
-        if ((m & (m >> (2 * HEIGHT))) != 0)
-        {
-            return true;
-        }
-
-        // diagonal 2 
-        m = pos & (pos >> (HEIGHT + 2));
-        if ((m & (m >> (2 * (HEIGHT + 2)))) != 0) { return true; }
-
-        // vertical;
-        m = pos & (pos >> 1);
-        if ((m & (m >> 2)) != 0) { return true; }
-
-        return false;
+        return possibleMask & ~(opponentWin >> 1);  // avoid to play below an opponent winning spot
     }
 
     // return a bitmask containg a single 1 corresponding to the top cel of a given column
-    private static ulong TopMask(int col)
+    private static ulong TopMaskCol(int col)
     {
         return ((ulong)(1) << (HEIGHT - 1)) << col * (HEIGHT + 1);
     }
 
     // return a bitmask containg a single 1 corresponding to the bottom cell of a given column
-    private static ulong BottomMask(int col)
+    private static ulong BottomMaskCol(int col)
     {
         return (ulong)(1) << col * (HEIGHT + 1);
     }
 
     // return a bitmask 1 on all the cells of a given column
-    private static ulong ColumnMask(int col)
+    public static ulong ColumnMask(int col)
     {
         return (((ulong)(1) << HEIGHT) - 1) << col * (HEIGHT + 1);
     }
